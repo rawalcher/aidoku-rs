@@ -1,4 +1,5 @@
-use serde::{Serialize, ser::SerializeStruct};
+use serde::{Deserialize, Serialize, ser::SerializeStruct, de::Error};
+use core::fmt;
 
 extern crate alloc;
 use alloc::{borrow::Cow, string::String, vec::Vec};
@@ -19,7 +20,7 @@ pub struct Setting {
 }
 
 impl Serialize for Setting {
-	fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: serde::Serializer,
 	{
@@ -33,6 +34,77 @@ impl Serialize for Setting {
 		state.serialize_field("refreshes", &self.refreshes)?;
 		state.serialize_field("value", &self.value)?;
 		state.end()
+	}
+}
+
+impl<'de> Deserialize<'de> for Setting {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct SettingVisitor;
+		impl<'de> serde::de::Visitor<'de> for SettingVisitor {
+			type Value = Setting;
+
+			fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+				write!(f, "a Setting struct")
+			}
+
+			fn visit_seq<A: serde::de::SeqAccess<'de>>(
+				self,
+				mut seq: A,
+			) -> Result<Setting, A::Error> {
+				// Field 0: type (derived from value)
+				let _type: Cow<'static, str> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("type"))?;
+				let key: Cow<'static, str> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("key"))?;
+				let title: Cow<'static, str> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("title"))?;
+				let notification: Option<Cow<'static, str>> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("notification"))?;
+				let requires: Option<Cow<'static, str>> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("requires"))?;
+				let requires_false: Option<Cow<'static, str>> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("requires_false"))?;
+				let refreshes: Option<Vec<Cow<'static, str>>> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("refreshes"))?;
+				let value: SettingValue = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("value"))?;
+
+				Ok(Setting {
+					key,
+					title,
+					notification,
+					requires,
+					requires_false,
+					refreshes,
+					value,
+				})
+			}
+		}
+		deserializer.deserialize_struct(
+			"Setting",
+			&[
+				"type",
+				"key",
+				"title",
+				"notification",
+				"requires",
+				"requires_false",
+				"refreshes",
+				"value",
+			],
+			SettingVisitor,
+		)
 	}
 }
 
@@ -60,8 +132,34 @@ impl Serialize for LoginMethod {
 	}
 }
 
+impl<'de> Deserialize<'de> for LoginMethod {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct LoginMethodVisitor;
+		impl<'de> serde::de::Visitor<'de> for LoginMethodVisitor {
+			type Value = LoginMethod;
+
+			fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+				write!(f, "a login method string")
+			}
+
+			fn visit_str<E: Error>(self, v: &str) -> Result<LoginMethod, E> {
+				match v {
+					"basic" => Ok(LoginMethod::Basic),
+					"oauth" => Ok(LoginMethod::OAuth),
+					"web" => Ok(LoginMethod::Web),
+					_ => Err(Error::custom(alloc::format!("unknown login method: {}", v))),
+				}
+			}
+		}
+		deserializer.deserialize_str(LoginMethodVisitor)
+	}
+}
+
 /// The kind of setting.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SettingValue {
 	/// A group of settings.
 	Group {
@@ -232,15 +330,15 @@ pub enum PageIcon {
 }
 
 impl Serialize for PageIcon {
-	fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: serde::Serializer,
 	{
 		let mut state = serializer.serialize_struct(
-			"Setting",
+			"PageIcon",
 			match self {
-				Self::System { .. } => 2,
-				Self::Url(_) => 1,
+				Self::System { .. } => 4,
+				Self::Url(_) => 2,
 			},
 		)?;
 		match self {
@@ -256,6 +354,61 @@ impl Serialize for PageIcon {
 			}
 		}
 		state.end()
+	}
+}
+
+impl<'de> Deserialize<'de> for PageIcon {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct PageIconVisitor;
+		impl<'de> serde::de::Visitor<'de> for PageIconVisitor {
+			type Value = PageIcon;
+
+			fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+				write!(f, "a PageIcon struct")
+			}
+
+			fn visit_seq<A: serde::de::SeqAccess<'de>>(
+				self,
+				mut seq: A,
+			) -> Result<PageIcon, A::Error> {
+				let icon_type: String = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("type"))?;
+
+				match icon_type.as_str() {
+					"system" => {
+						let name: String = seq
+							.next_element()?
+							.ok_or_else(|| Error::missing_field("name"))?;
+						let color: String = seq
+							.next_element()?
+							.ok_or_else(|| Error::missing_field("color"))?;
+						let inset: Option<i32> = seq
+							.next_element()?
+							.ok_or_else(|| Error::missing_field("inset"))?;
+						Ok(PageIcon::System { name, color, inset })
+					}
+					"url" => {
+						let url: String = seq
+							.next_element()?
+							.ok_or_else(|| Error::missing_field("url"))?;
+						Ok(PageIcon::Url(url))
+					}
+					_ => Err(Error::custom(alloc::format!(
+						"unknown PageIcon type: {}",
+						icon_type
+					))),
+				}
+			}
+		}
+		deserializer.deserialize_struct(
+			"PageIcon",
+			&["type"],
+			PageIconVisitor,
+		)
 	}
 }
 

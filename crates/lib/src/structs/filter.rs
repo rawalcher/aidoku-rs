@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize, ser::SerializeStruct};
+use serde::{Deserialize, Serialize, ser::SerializeStruct, de::Error};
+use core::fmt;
 
 extern crate alloc;
 use alloc::{borrow::Cow, string::String, vec::Vec};
@@ -270,12 +271,12 @@ impl FilterKind {
 }
 
 impl Serialize for Filter {
-	fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		S: serde::Serializer,
 	{
 		let mut state = serializer.serialize_struct("Filter", 0)?;
-		state.serialize_field("id", &Some(self.id.clone()))?;
+		state.serialize_field("id", &self.id)?;
 		state.serialize_field("title", &self.title)?;
 		state.serialize_field("hide_from_header", &self.hide_from_header)?;
 		state.serialize_field("type", &self.kind.raw_value())?;
@@ -288,7 +289,7 @@ impl Serialize for Filter {
 				options,
 				default,
 			} => {
-				state.serialize_field("can_ascend", &Some(can_ascend))?;
+				state.serialize_field("can_ascend", can_ascend)?;
 				state.serialize_field("options", &options)?;
 				state.serialize_field("default", &default)?
 			}
@@ -298,7 +299,7 @@ impl Serialize for Filter {
 				default,
 			} => {
 				state.serialize_field("name", &name)?;
-				state.serialize_field("can_exclude", &Some(can_exclude))?;
+				state.serialize_field("can_exclude", can_exclude)?;
 				state.serialize_field("default", &default)?
 			}
 			FilterKind::Select {
@@ -308,8 +309,8 @@ impl Serialize for Filter {
 				ids,
 				default,
 			} => {
-				state.serialize_field("is_genre", &Some(is_genre))?;
-				state.serialize_field("uses_tag_style", &Some(uses_tag_style))?;
+				state.serialize_field("is_genre", is_genre)?;
+				state.serialize_field("uses_tag_style", uses_tag_style)?;
 				state.serialize_field("options", &options)?;
 				state.serialize_field("ids", &ids)?;
 				state.serialize_field("default", &default)?
@@ -323,9 +324,9 @@ impl Serialize for Filter {
 				default_included,
 				default_excluded,
 			} => {
-				state.serialize_field("is_genre", &Some(is_genre))?;
-				state.serialize_field("can_exclude", &Some(can_exclude))?;
-				state.serialize_field("uses_tag_style", &Some(uses_tag_style))?;
+				state.serialize_field("is_genre", is_genre)?;
+				state.serialize_field("can_exclude", can_exclude)?;
+				state.serialize_field("uses_tag_style", uses_tag_style)?;
 				state.serialize_field("options", &options)?;
 				state.serialize_field("ids", &ids)?;
 				state.serialize_field("default_included", &default_included)?;
@@ -335,10 +336,123 @@ impl Serialize for Filter {
 			FilterKind::Range { min, max, decimal } => {
 				state.serialize_field("min", &min)?;
 				state.serialize_field("max", &max)?;
-				state.serialize_field("decimal", &Some(decimal))?;
+				state.serialize_field("decimal", decimal)?;
 			}
 		};
 		state.end()
+	}
+}
+
+impl<'de> Deserialize<'de> for Filter {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct FilterVisitor;
+		impl<'de> serde::de::Visitor<'de> for FilterVisitor {
+			type Value = Filter;
+
+			fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+				write!(f, "a Filter struct")
+			}
+
+			fn visit_seq<A: serde::de::SeqAccess<'de>>(
+				self,
+				mut seq: A,
+			) -> Result<Filter, A::Error> {
+				let id: Cow<'static, str> = seq.next_element()?.ok_or_else(|| Error::missing_field("id"))?;
+				let title: Option<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("title"))?;
+				let hide_from_header: Option<bool> = seq.next_element()?.ok_or_else(|| Error::missing_field("hide_from_header"))?;
+				let filter_type: String = seq.next_element()?.ok_or_else(|| Error::missing_field("filter_type"))?;
+
+				let kind = match filter_type.as_str() {
+					"text" => {
+						let placeholder: Option<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("placeholder"))?;
+						FilterKind::Text { placeholder }
+					},
+					"sort" => {
+						let can_ascend: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("can_ascend"))?;
+						let options: Vec<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("options"))?;
+						let default: Option<SortFilterDefault> = seq.next_element()?.ok_or_else(|| Error::missing_field("default"))?;
+						FilterKind::Sort {
+							can_ascend,
+							options,
+							default,
+						}
+					}
+					"check" => {
+						let name: Option<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("name"))?;
+						let can_exclude: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("can_exclude"))?;
+						let default: Option<bool> = seq.next_element()?.ok_or_else(|| Error::missing_field("default"))?;
+						FilterKind::Check {
+							name,
+							can_exclude,
+							default,
+						}
+					}
+					"select" => {
+						let is_genre: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("is_genre"))?;
+						let uses_tag_style: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("uses_tag_style"))?;
+						let options: Vec<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("options"))?;
+						let ids: Option<Vec<Cow<'static, str>>> = seq.next_element()?.ok_or_else(|| Error::missing_field("ids"))?;
+						let default: Option<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("default"))?;
+						FilterKind::Select {
+							is_genre,
+							uses_tag_style,
+							options,
+							ids,
+							default,
+						}
+					}
+					"multi-select" => {
+						let is_genre: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("is_genre"))?;
+						let can_exclude: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("can_exclude"))?;
+						let uses_tag_style: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("uses_tag_style"))?;
+						let options: Vec<Cow<'static, str>> = seq.next_element()?.ok_or_else(|| Error::missing_field("options"))?;
+						let ids: Option<Vec<Cow<'static, str>>> = seq.next_element()?.ok_or_else(|| Error::missing_field("ids"))?;
+						let default_included: Option<Vec<Cow<'static, str>>> = seq.next_element()?.ok_or_else(|| Error::missing_field("default_included"))?;
+						let default_excluded: Option<Vec<Cow<'static, str>>> = seq.next_element()?.ok_or_else(|| Error::missing_field("default_excluded"))?;
+						FilterKind::MultiSelect {
+							is_genre,
+							can_exclude,
+							uses_tag_style,
+							options,
+							ids,
+							default_included,
+							default_excluded,
+						}
+					}
+					"note" => {
+						let text: Cow<'static, str> = seq.next_element()?.ok_or_else(|| Error::missing_field("text"))?;
+						FilterKind::Note(text)
+					}
+					"range" => {
+						let min: Option<f32> = seq.next_element()?.ok_or_else(|| Error::missing_field("min"))?;
+						let max: Option<f32> = seq.next_element()?.ok_or_else(|| Error::missing_field("max"))?;
+						let decimal: bool = seq.next_element()?.ok_or_else(|| Error::missing_field("decimal"))?;
+						FilterKind::Range {
+							min,
+							max,
+							decimal,
+						}
+					}
+					_ => return Err(Error::custom(alloc::format!("unknown filter type: {}", filter_type))),
+				};
+
+				Ok(Filter {
+					id,
+					title,
+					hide_from_header,
+					kind,
+				})
+			}
+		}
+
+		deserializer.deserialize_struct(
+			"Filter",
+			&["id", "title", "hide_from_header", "type"],
+			FilterVisitor,
+		)
 	}
 }
 

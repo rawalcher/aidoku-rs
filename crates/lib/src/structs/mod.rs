@@ -141,7 +141,7 @@ impl Manga {
 }
 
 /// A page of manga entries.
-#[derive(Default, Clone, Debug, PartialEq, Serialize)]
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MangaPageResult {
 	/// List of manga entries.
 	pub entries: Vec<Manga>,

@@ -4,7 +4,8 @@ use super::{
 };
 use crate::alloc::{String, Vec};
 use crate::imports::{canvas::ImageRef, net::Request};
-use serde::{Deserialize, Serialize, ser::SerializeStruct};
+use serde::{Deserialize, Serialize, ser::SerializeStruct, de::Error};
+use core::fmt;
 
 pub use crate::imports::error::{AidokuError, Result};
 
@@ -166,6 +167,51 @@ impl Serialize for DeepLinkResult {
 			}
 		}
 		state.end()
+	}
+}
+
+impl<'de> Deserialize<'de> for DeepLinkResult {
+	fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct DeepLinkResultVisitor;
+		impl<'de> serde::de::Visitor<'de> for DeepLinkResultVisitor {
+			type Value = DeepLinkResult;
+
+			fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+				write!(f, "a DeepLinkResult struct")
+			}
+
+			fn visit_seq<A: serde::de::SeqAccess<'de>>(
+				self,
+				mut seq: A,
+			) -> core::result::Result<DeepLinkResult, A::Error> {
+				let manga_key: Option<String> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("manga_key"))?;
+				let chapter_key: Option<String> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("chapter_key"))?;
+				let listing: Option<Listing> = seq
+					.next_element()?
+					.ok_or_else(|| Error::missing_field("listing"))?;
+
+				match (manga_key, chapter_key, listing) {
+					(Some(key), None, None) => Ok(DeepLinkResult::Manga { key }),
+					(Some(manga_key), Some(key), None) => {
+						Ok(DeepLinkResult::Chapter { manga_key, key })
+					}
+					(None, None, Some(listing)) => Ok(DeepLinkResult::Listing(listing)),
+					_ => Err(Error::custom("invalid DeepLinkResult variant")),
+				}
+			}
+		}
+		deserializer.deserialize_struct(
+			"DeepLinkResult",
+			&["manga_key", "chapter_key", "listing"],
+			DeepLinkResultVisitor,
+		)
 	}
 }
 

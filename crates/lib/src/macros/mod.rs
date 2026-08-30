@@ -302,6 +302,25 @@ macro_rules! register_source {
 		}
 	};
 
+	(@single CoverImageProcessor) => {
+		#[unsafe(no_mangle)]
+		#[unsafe(export_name = "process_cover_image")]
+		pub unsafe extern "C" fn __wasm_process_cover_image(response_descriptor: i32) -> i32 {
+			let ::core::result::Result::Ok(response) =
+				$crate::imports::std::read::<$crate::ImageResponse>(response_descriptor)
+			else {
+				return -1;
+			};
+
+			use $crate::CoverImageProcessor;
+			let mut result = __source().process_cover_image(response);
+			if let Ok(image_ref) = result.as_mut() {
+				image_ref.externally_managed = true;
+			}
+			__handle_result(result.map(|r| r.rid))
+		}
+	};
+
 	(@single ImageRequestProvider) => {
 		#[unsafe(no_mangle)]
 		#[unsafe(export_name = "get_image_request")]

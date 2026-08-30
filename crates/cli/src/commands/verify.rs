@@ -314,6 +314,17 @@ fn validate_wasm(
 						continue;
 					};
 					exports.mark(export.name);
+					use wasmparser::Export;
+					let v = match export {
+						Export {
+							name: "process_cover_image",
+							..
+						} => FullVersion::new(0, 9, 0),
+						_ => continue,
+					};
+					if v > api_min_version {
+						api_min_version = v;
+					}
 				}
 				exports_checked = true;
 			}

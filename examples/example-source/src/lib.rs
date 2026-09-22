@@ -1,14 +1,14 @@
 #![no_std]
 use aidoku::{
 	alloc::{vec, String, Vec},
-	imports::{defaults::defaults_get, net::Request},
+	imports::{canvas::*, defaults::defaults_get, net::Request},
 	prelude::*,
-	AlternateCoverProvider, Chapter, CheckFilter, ContentRating, DeepLinkHandler, DeepLinkResult,
-	DynamicFilters, DynamicListings, DynamicSettings, Filter, FilterValue, Home, HomeComponent,
-	HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
-	MigrationHandler, MultiSelectFilter, NotificationHandler, Page, PageContent,
-	PageDescriptionProvider, RangeFilter, Result, SelectFilter, Setting, SortFilter, Source,
-	TextFilter, ToggleSetting,
+	AlternateCoverProvider, Chapter, CheckFilter, ContentRating, CoverImageProcessor,
+	DeepLinkHandler, DeepLinkResult, DynamicFilters, DynamicListings, DynamicSettings, Filter,
+	FilterValue, Home, HomeComponent, HomeLayout, ImageResponse, Listing, ListingProvider, Manga,
+	MangaPageResult, MangaStatus, MangaWithChapter, MigrationHandler, MultiSelectFilter,
+	NotificationHandler, Page, PageContent, PageDescriptionProvider, RangeFilter, Result,
+	SelectFilter, Setting, SortFilter, Source, TextFilter, ToggleSetting,
 };
 
 const PAGE_SIZE: i32 = 20;
@@ -406,6 +406,23 @@ impl AlternateCoverProvider for ExampleSource {
 	}
 }
 
+// you can process response data from page and cover images, and use canvas apis to draw your own images
+// use the PageImageProcessor or CoverImageProcessor traits
+impl CoverImageProcessor for ExampleSource {
+	fn process_cover_image(&self, _response: ImageResponse) -> Result<ImageRef> {
+		let mut canvas = Canvas::new(200., 300.);
+		canvas.fill(&Path::rect(&Rect::new(0., 0., 200., 300.)), &Color::white());
+		canvas.draw_text(
+			"Cover",
+			32.,
+			&Point::new(60., 140.),
+			&Font::system(Default::default()),
+			&Color::red(),
+		);
+		Ok(canvas.get_image())
+	}
+}
+
 // it's recommended for all sources to implement the DeepLinkHandler trait
 // the url that is passed in will have the base of any of the source's urls
 // the source should determine if the url is a link to a manga, a chapter, or a listing page,
@@ -450,6 +467,7 @@ register_source!(
 	DynamicListings,
 	NotificationHandler,
 	AlternateCoverProvider,
+	CoverImageProcessor,
 	DeepLinkHandler,
 	MigrationHandler
 );

@@ -71,6 +71,11 @@ pub trait PageImageProcessor: Source {
 	) -> Result<ImageRef>;
 }
 
+/// A source that processes cover image data after being fetched.
+pub trait CoverImageProcessor: Source {
+	fn process_cover_image(&self, response: ImageResponse) -> Result<ImageRef>;
+}
+
 /// A source that provides requests for images.
 ///
 /// By default, Aidoku will request covers, thumbnails, and pages without headers.

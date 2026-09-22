@@ -111,8 +111,6 @@ macro_rules! register_source {
 		fn __handle_error(error: &$crate::imports::error::AidokuError) -> i32 {
 			$crate::prelude::println!("Error: {:?}", error);
 			match error {
-				$crate::imports::error::AidokuError::Unimplemented => -2,
-				$crate::imports::error::AidokuError::RequestError(_) => -3,
 				$crate::imports::error::AidokuError::Message(string) => {
 					let mut buffer = (-1 as i32).to_le_bytes().to_vec();
 
@@ -128,7 +126,7 @@ macro_rules! register_source {
 					::core::mem::forget(buffer);
 					ptr
 				}
-				_ => -1,
+				error => error.error_code(),
 			}
 		}
 
@@ -297,6 +295,25 @@ macro_rules! register_source {
 
 			use $crate::PageImageProcessor;
 			let mut result = __source().process_page_image(response, context);
+			if let Ok(image_ref) = result.as_mut() {
+				image_ref.externally_managed = true;
+			}
+			__handle_result(result.map(|r| r.rid))
+		}
+	};
+
+	(@single CoverImageProcessor) => {
+		#[unsafe(no_mangle)]
+		#[unsafe(export_name = "process_cover_image")]
+		pub unsafe extern "C" fn __wasm_process_cover_image(response_descriptor: i32) -> i32 {
+			let ::core::result::Result::Ok(response) =
+				$crate::imports::std::read::<$crate::ImageResponse>(response_descriptor)
+			else {
+				return -1;
+			};
+
+			use $crate::CoverImageProcessor;
+			let mut result = __source().process_cover_image(response);
 			if let Ok(image_ref) = result.as_mut() {
 				image_ref.externally_managed = true;
 			}

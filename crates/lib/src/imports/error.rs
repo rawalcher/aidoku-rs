@@ -35,6 +35,23 @@ pub enum AidokuError {
 }
 
 impl AidokuError {
+	pub const fn error_code(&self) -> i32 {
+		match self {
+			Self::Unimplemented => -2,
+			Self::RequestError(_) => -3,
+			Self::HtmlError(_) => -4,
+			Self::JsError(_) => -5,
+			Self::CanvasError(_) => -6,
+			Self::Utf8Error(_) => -7,
+			#[cfg(feature = "json")]
+			Self::JsonParseError(_) => -8,
+			Self::DeserializeError => -9,
+			Self::Message(_) => -1,
+		}
+	}
+}
+
+impl AidokuError {
 	/// Creates a new message error.
 	pub fn message<S: Display>(message: S) -> Self {
 		Self::Message(message.to_string())

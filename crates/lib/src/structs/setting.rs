@@ -263,6 +263,8 @@ pub enum SettingValue {
 		use_email: bool,
 		/// An array of localStorage keys to extract after login.
 		local_storage_keys: Option<Vec<String>>,
+		/// Whether to clear cookies from the web view on log out.
+		clear_cookies_on_log_out: bool,
 	},
 	/// A page of settings.
 	Page {
@@ -668,6 +670,8 @@ create_setting_struct!(
 		use_email: bool,
 		/// An array of localStorage keys to extract after login.
 		local_storage_keys: Option<Vec<String>>,
+		/// Whether to clear cookies from the web view on log out.
+		clear_cookies_on_log_out: bool,
 	},
 	{
 		method: LoginMethod::OAuth,
@@ -679,6 +683,7 @@ create_setting_struct!(
 		callback_scheme: None,
 		use_email: false,
 		local_storage_keys: None,
+		clear_cookies_on_log_out: false,
 	}
 );
 
